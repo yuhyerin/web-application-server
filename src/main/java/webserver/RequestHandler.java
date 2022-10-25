@@ -9,6 +9,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.file.Files;
+import java.util.Collection;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -32,7 +33,8 @@ public class RequestHandler extends Thread {
 		log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(),
 				connection.getPort());
 
-		try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
+		try (InputStream in = connection.getInputStream();
+				OutputStream out = connection.getOutputStream()) {
 			// TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
 			BufferedReader br = new BufferedReader(new InputStreamReader(in, "UTF-8"));
 			String line = br.readLine();
@@ -42,6 +44,7 @@ public class RequestHandler extends Thread {
 			}
 
 			String[] tokens = line.split(" ");
+			boolean logined = false; // 로그인 여부
 			int contentLength = 0;
 			
 			while (!line.equals("")) {
@@ -50,19 +53,15 @@ public class RequestHandler extends Thread {
 				if(line.contains("Content-Length")) {
 					contentLength = getContentLength(line);
 				}
-				
+				if(line.contains("Cookie")) {
+					logined = isLogin(line);
+				}
 			}
 
 			// 요구사항2. GET방식으로 회원가입 하기 -> 요구사항3. POST방식으로 회원가입 하기
 			String url = tokens[1];
 			
 			if ("/user/create".equals(url)) {
-				// GET방식 
-//				int index = url.indexOf("?");
-//				String queryString = url.substring(index + 1);
-//				Map<String, String> params = HttpRequestUtils.parseQueryString(queryString);
-				
-				// POST방식
 				String body = IOUtils.readData(br, contentLength);
 				Map<String, String> params = HttpRequestUtils.parseQueryString(body);
 				User user = new User(params.get("userId"), params.get("password"), params.get("name"),
@@ -71,7 +70,6 @@ public class RequestHandler extends Thread {
 				DataBase.addUser(user); // DB저장 
 				DataOutputStream dos = new DataOutputStream(out);
 				response302Header(dos, "/index.html");
-//				url = "/index.html"; // 회원가입 요청 완료 후 index.html 파일을 읽어 응답으로 보낸다.
 				
 			} else if ("/user/login".equals(url)) {
 				String body = IOUtils.readData(br, contentLength);
@@ -88,12 +86,27 @@ public class RequestHandler extends Thread {
 				}else {
 					responseResource(out, "/user/login_failed.html");
 				}
+				
+			} else if("/user/list".equals(url)) {
+				if(!logined) {
+					responseResource(out, "/user/login.html");
+				}
+				Collection<User> users = DataBase.findAll();
+				StringBuilder sb = new StringBuilder();
+				sb.append("<table border='1'>");
+				for(User user : users) {
+					sb.append("<tr>");
+					sb.append("<td>"+user.getUserId()+"</td>");
+					sb.append("<td>"+user.getName()+"</td>");
+					sb.append("<td>"+user.getEmail()+"</td>");
+					sb.append("</tr>");
+				}
+				sb.append("</table>");
+				byte[] body = sb.toString().getBytes();
+				DataOutputStream dos = new DataOutputStream(out);
+				response200Header(dos, body.length);
+				responseBody(dos, body);
 			} else {
-//				DataOutputStream dos = new DataOutputStream(out);
-//              byte[] body = "Hello World".getBytes();
-//				byte[] body = Files.readAllBytes(new File("./webapp" + tokens[1]).toPath());
-//				response200Header(dos, body.length);
-//				responseBody(dos, body);
 				responseResource(out, url);
 			}
 		} catch (IOException e) {
@@ -127,7 +140,7 @@ public class RequestHandler extends Thread {
 			dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
 			dos.writeBytes("Set-Cookie: logined=true \r\n");
 			dos.writeBytes("Location: /index.html \r\n");
-			dos.writeBytes(" \r\n");
+			dos.writeBytes("\r\n");
 		}catch(IOException e) {
 			log.error(e.getMessage());
 		}
@@ -152,5 +165,16 @@ public class RequestHandler extends Thread {
 	private int getContentLength(String line) {
 		String[] headerTokens = line.split(":");
 		return Integer.parseInt(headerTokens[1].trim());
+	}
+	
+	private boolean isLogin(String line) {
+		String[] headerTokens = line.split(":");
+		Map<String, String> cookies = 
+				HttpRequestUtils.parseCookies(headerTokens[1].trim());
+		String value = cookies.get("logined");
+		if(value==null) {
+			return false;
+		}
+		return Boolean.parseBoolean(value);
 	}
 }
