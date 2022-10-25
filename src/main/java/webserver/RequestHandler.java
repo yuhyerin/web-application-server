@@ -55,7 +55,7 @@ public class RequestHandler extends Thread {
 			// 요구사항2. GET방식으로 회원가입 하기 -> 요구사항3. POST방식으로 회원가입 하기
 			String url = tokens[1];
 			
-			if (url.startsWith("/user/create")) {
+			if ("/user/create".equals(url)) {
 				// GET방식 
 //				int index = url.indexOf("?");
 //				String queryString = url.substring(index + 1);
@@ -67,6 +67,10 @@ public class RequestHandler extends Thread {
 				User user = new User(params.get("userId"), params.get("password"), params.get("name"),
 						params.get("email"));
 				log.debug("User : {}", user);
+				DataOutputStream dos = new DataOutputStream(out);
+				response302Header(dos, "/index.html");
+//				url = "/index.html"; // 회원가입 요청 완료 후 index.html 파일을 읽어 응답으로 보낸다.
+				
 			} else {
 				DataOutputStream dos = new DataOutputStream(out);
 //              byte[] body = "Hello World".getBytes();
@@ -84,6 +88,16 @@ public class RequestHandler extends Thread {
 			dos.writeBytes("HTTP/1.1 200 OK \r\n");
 			dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
 			dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+			dos.writeBytes("\r\n");
+		} catch (IOException e) {
+			log.error(e.getMessage());
+		}
+	}
+	
+	private void response302Header(DataOutputStream dos, String url) {
+		try {
+			dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
+			dos.writeBytes("Location: " + url + " \r\n");
 			dos.writeBytes("\r\n");
 		} catch (IOException e) {
 			log.error(e.getMessage());
