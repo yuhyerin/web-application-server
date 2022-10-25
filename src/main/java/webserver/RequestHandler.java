@@ -71,6 +71,11 @@ public class RequestHandler extends Thread {
 				DataOutputStream dos = new DataOutputStream(out);
 				response302Header(dos, "/index.html");
 				
+			}else if (url.endsWith(".css")) {
+				DataOutputStream dos = new DataOutputStream(out);
+				byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
+				response200CssHeader(dos, body.length);
+				responseBody(dos, body);
 			} else if ("/user/login".equals(url)) {
 				String body = IOUtils.readData(br, contentLength);
 				Map<String, String> params = HttpRequestUtils.parseQueryString(body);
@@ -112,6 +117,18 @@ public class RequestHandler extends Thread {
 		} catch (IOException e) {
 			log.error(e.getMessage());
 		}
+	}
+
+	private void response200CssHeader(DataOutputStream dos, int lengthOfBodyContent) {
+		try {
+			dos.writeBytes("HTTP/1.1 200 OK \r\n");
+			dos.writeBytes("Content-Type: text/css\r\n");
+			dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+			dos.writeBytes("\r\n");
+		} catch (IOException e) {
+			log.error(e.getMessage());
+		}
+		
 	}
 
 	private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
